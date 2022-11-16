@@ -8,8 +8,42 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <thread>
 
 #define BUFSIZE 512
+
+void run(struct sockaddr_in addr, int sock){
+		
+		// 접속한 클라이언트 정보 출력
+		char temp[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &addr.sin_addr, temp, sizeof(temp));
+		printf("\n[TCP 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d\n",
+			temp, ntohs(addr.sin_port));
+
+		char buf[BUFSIZE + 1];
+
+		// 클라이언트와 데이터 통신
+		while (1) {
+			// 데이터 받기
+			int	retval = recv(sock, buf, BUFSIZE, 0);
+			
+			if (retval == 0 || retval == -1)
+				break;
+
+			// 받은 데이터 출력
+			buf[retval] = '\0';
+			printf("[TCP/%s:%d] %s\n", temp, ntohs(addr.sin_port), buf);
+
+			// 데이터 보내기
+			retval = send(sock, buf, retval, 0);
+
+		}
+
+		// 소켓 닫기
+		close(sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n",
+			temp, ntohs(addr.sin_port));
+}
 
 int main(int argc, char *argv[]){
 
@@ -33,39 +67,16 @@ int main(int argc, char *argv[]){
 	int client_sock;
 	struct sockaddr_in clientaddr;
 	socklen_t addrlen;
-	char buf[BUFSIZE + 1];
+	
 
-	while (1) {
+	while(1){
 		// accept()
 		addrlen = sizeof(clientaddr);
 		client_sock = accept(listen_sock, (struct sockaddr *)&clientaddr, &addrlen);
-
-		// 접속한 클라이언트 정보 출력
-		char addr[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
-		printf("\n[TCP 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d\n",
-			addr, ntohs(clientaddr.sin_port));
-
-		// 클라이언트와 데이터 통신
-		while (1) {
-			// 데이터 받기
-			retval = recv(client_sock, buf, BUFSIZE, 0);
-			if (retval == 0)
-				break;
-
-			// 받은 데이터 출력
-			buf[retval] = '\0';
-			printf("[TCP/%s:%d] %s\n", addr, ntohs(clientaddr.sin_port), buf);
-
-			// 데이터 보내기
-			retval = send(client_sock, buf, retval, 0);
-
+		if(client_sock == -1){
+			break;
 		}
-
-		// 소켓 닫기
-		close(client_sock);
-		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n",
-			addr, ntohs(clientaddr.sin_port));
+		new std::thread(&run, clientaddr, client_sock);
 	}
 
 	// 소켓 닫기
